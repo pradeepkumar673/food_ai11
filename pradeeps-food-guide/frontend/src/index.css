@@ -140,3 +140,36 @@
 ::selection {
   @apply bg-food-orange text-white;
 }
+/* Splash Screen Animations */
+@keyframes language-switch {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.5; transform: translateY(-5px); }
+}
+
+.language-switch {
+  animation: language-switch 0.2s ease-in-out;
+}
+
+/* Ensure splash screen is on top */
+.splash-screen {
+  z-index: 9999;
+}
+
+/* Loading pulse */
+@keyframes loading-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.loading-pulse {
+  animation: loading-pulse 1.5s ease-in-out infinite;
+}
+
+/* Ensure full coverage */
+.splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
