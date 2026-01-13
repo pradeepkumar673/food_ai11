@@ -72,7 +72,7 @@ const SplashScreen = ({ onComplete }) => {
   if (!showContent) {
     return (
       <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-food-orange"></div>
+        <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-b-2 border-food-orange"></div>
       </div>
     )
   }
@@ -80,34 +80,34 @@ const SplashScreen = ({ onComplete }) => {
   const currentMessage = welcomeMessages[currentIndex]
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center p-4 md:p-8">
       {/* Logo Container */}
-      <div className="mb-12 relative">
-        <div className="relative w-48 h-48 flex items-center justify-center">
+      <div className="mb-6 md:mb-8 lg:mb-12 relative">
+        <div className="relative w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 flex items-center justify-center">
           {/* Glow effect */}
-          <div className="absolute inset-0 bg-food-orange rounded-full opacity-20 blur-2xl"></div>
+          <div className="absolute inset-0 bg-food-orange rounded-full opacity-20 blur-xl md:blur-2xl"></div>
           
           {/* Logo border */}
-          <div className="absolute inset-0 border-4 border-food-orange/30 rounded-full animate-pulse"></div>
+          <div className="absolute inset-0 border-3 md:border-4 border-food-orange/30 rounded-full animate-pulse"></div>
           
           {/* Logo content */}
-          <div className="relative w-40 h-40 bg-black rounded-full flex items-center justify-center">
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 bg-black rounded-full flex items-center justify-center">
             <div className="text-center">
               {/* Try to load logo from public folder */}
               <img 
                 src="/light.svg" 
                 alt="Pradeep's Food Guide" 
-                className="w-32 h-32 mx-auto"
+                className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 mx-auto"
                 onError={(e) => {
                   // Fallback if logo doesn't exist
                   e.target.style.display = 'none'
                   const parent = e.target.parentElement
                   parent.innerHTML = `
                     <div class="text-food-orange">
-                      <svg class="w-32 h-32 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>
                       </svg>
-                      <div class="text-2xl font-bold mt-2">Food Guide</div>
+                      <div class="text-lg sm:text-xl md:text-2xl font-bold mt-1 sm:mt-2">Food Guide</div>
                     </div>
                   `
                 }}
@@ -118,19 +118,19 @@ const SplashScreen = ({ onComplete }) => {
       </div>
 
       {/* Welcome Text */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-4 sm:mb-6 md:mb-8 max-w-full px-2">
         <div className="relative">
-          <h1 className="text-6xl md:text-7xl font-bold text-white mb-4 font-display tracking-wide">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-2 sm:mb-3 md:mb-4 font-display tracking-wide break-words">
             {currentMessage.text}
           </h1>
-          <div className="text-xl text-gray-300">
+          <div className="text-base sm:text-lg md:text-xl text-gray-300">
             <span className="text-food-yellow">{currentMessage.lang}</span>
           </div>
         </div>
       </div>
 
       {/* Progress Indicator */}
-      <div className="w-64 h-1 bg-gray-800 rounded-full overflow-hidden mt-8">
+      <div className="w-48 sm:w-56 md:w-64 h-1 sm:h-1.5 bg-gray-800 rounded-full overflow-hidden mt-4 sm:mt-6 md:mt-8">
         <div 
           className="h-full bg-gradient-to-r from-food-orange to-food-yellow transition-all duration-300 ease-linear"
           style={{ 
@@ -140,29 +140,32 @@ const SplashScreen = ({ onComplete }) => {
       </div>
 
       {/* Language Counter */}
-      <div className="mt-4 text-gray-500 text-sm">
+      <div className="mt-3 sm:mt-4 md:mt-6 text-gray-500 text-xs sm:text-sm md:text-base px-2 text-center">
         {currentIndex === welcomeMessages.length - 1 ? (
-          <span className="text-food-yellow text-lg animate-pulse">
+          <span className="text-food-yellow text-sm sm:text-base md:text-lg animate-pulse inline-block max-w-full break-words">
             நான் பிரதீப் குமார், உங்களை என் பக்கத்திற்கு வரவேற்கிறேன்.
           </span>
         ) : (
-          <>
+          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
             <span>Language {currentIndex + 1} of {welcomeMessages.length}</span>
-            <span className="mx-2">•</span>
-            <span>Next: {welcomeMessages[currentIndex + 1]?.lang}</span>
-          </>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Next: {welcomeMessages[currentIndex + 1]?.lang}</span>
+            <span className="sm:hidden text-xs">Next: {welcomeMessages[currentIndex + 1]?.lang}</span>
+          </div>
         )}
       </div>
 
       {/* Loading Text */}
-      <div className="absolute bottom-10 text-gray-400 text-sm">
-        <div className="flex items-center space-x-2">
+      <div className="absolute bottom-4 sm:bottom-6 md:bottom-8 lg:bottom-10 text-gray-400 text-xs sm:text-sm px-4 w-full max-w-2xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
           <div className="flex space-x-1">
-            <div className="w-2 h-2 bg-food-orange rounded-full animate-bounce"></div>
-            <div className="w-2 h-2 bg-food-orange rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-            <div className="w-2 h-2 bg-food-orange rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-food-orange rounded-full animate-bounce"></div>
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-food-orange rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-food-orange rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
           </div>
-          <span>pls wait the website is loading தயவுசெய்து காத்திருங்கள் நண்பரே. ...</span>
+          <span className="text-center break-words">
+            pls wait the website is loading தயவுசெய்து காத்திருங்கள் நண்பரே. ...
+          </span>
         </div>
       </div>
     </div>
