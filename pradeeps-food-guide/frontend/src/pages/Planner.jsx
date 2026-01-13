@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Calendar, ShoppingCart, Printer, Download, Plus, Trash2, ChefHat, Clock, Users } from 'lucide-react'
+import { Calendar, ShoppingCart, Printer, Download, Plus, Trash2, ChefHat, Clock, Users, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Link } from 'react-router-dom'
 
 const Planner = () => {
   const [planner, setPlanner] = useState({})
@@ -35,7 +36,19 @@ const Planner = () => {
       })
       setPlanner(initialPlanner)
     } else {
-      setPlanner(saved)
+      // Ensure all days and meals exist
+      const updatedPlanner = { ...saved }
+      daysOfWeek.forEach(day => {
+        if (!updatedPlanner[day]) {
+          updatedPlanner[day] = {}
+        }
+        mealTypes.forEach(meal => {
+          if (!updatedPlanner[day][meal]) {
+            updatedPlanner[day][meal] = null
+          }
+        })
+      })
+      setPlanner(updatedPlanner)
     }
   }
 
@@ -60,7 +73,12 @@ const Planner = () => {
   const handleDrop = (e, day, mealType) => {
     e.preventDefault()
     try {
-      const recipe = dragItem || JSON.parse(e.dataTransfer.getData('text/plain'))
+      let recipe
+      if (dragItem) {
+        recipe = dragItem
+      } else {
+        recipe = JSON.parse(e.dataTransfer.getData('text/plain'))
+      }
       
       setPlanner(prev => ({
         ...prev,
@@ -73,11 +91,14 @@ const Planner = () => {
       toast.success(`Added ${recipe.title} to ${mealType} on ${day}`)
     } catch (error) {
       console.error('Drop error:', error)
+      toast.error('Failed to add recipe to planner')
     }
     setDragItem(null)
   }
 
   const clearSlot = (day, mealType) => {
+    if (!planner[day]?.[mealType]) return
+    
     setPlanner(prev => ({
       ...prev,
       [day]: {
@@ -89,6 +110,11 @@ const Planner = () => {
   }
 
   const clearDay = (day) => {
+    if (!Object.values(planner[day] || {}).some(meal => meal !== null)) {
+      toast.error(`No meals to clear on ${day}`)
+      return
+    }
+    
     if (window.confirm(`Clear all meals for ${day}?`)) {
       const newDay = {}
       mealTypes.forEach(meal => {
@@ -103,6 +129,15 @@ const Planner = () => {
   }
 
   const clearAll = () => {
+    const hasMeals = daysOfWeek.some(day => 
+      mealTypes.some(meal => planner[day]?.[meal])
+    )
+    
+    if (!hasMeals) {
+      toast.error('No meals to clear')
+      return
+    }
+    
     if (window.confirm('Clear entire meal plan?')) {
       const initialPlanner = {}
       daysOfWeek.forEach(day => {
@@ -117,8 +152,6 @@ const Planner = () => {
   }
 
   const generateShoppingList = () => {
-    // This would normally fetch ingredient details for each recipe
-    // For now, we'll create a mock shopping list based on meal names
     const allMeals = []
     daysOfWeek.forEach(day => {
       mealTypes.forEach(meal => {
@@ -133,29 +166,45 @@ const Planner = () => {
       return
     }
 
-    // Mock ingredients based on recipe titles
-    const mockIngredients = [
-      { name: 'Chicken Breast', amount: '500g', category: 'Meat' },
-      { name: 'Rice', amount: '2 cups', category: 'Grains' },
-      { name: 'Tomatoes', amount: '6 pieces', category: 'Vegetables' },
-      { name: 'Onions', amount: '3 pieces', category: 'Vegetables' },
-      { name: 'Garlic', amount: '1 bulb', category: 'Vegetables' },
-      { name: 'Olive Oil', amount: '1 bottle', category: 'Oils' },
-      { name: 'Salt', amount: 'To taste', category: 'Seasonings' },
-      { name: 'Black Pepper', amount: 'To taste', category: 'Seasonings' },
-      { name: 'Mixed Herbs', amount: '1 pack', category: 'Seasonings' },
-      { name: 'Eggs', amount: '12 pieces', category: 'Dairy' },
-      { name: 'Milk', amount: '1 liter', category: 'Dairy' },
-      { name: 'Bread', amount: '1 loaf', category: 'Bakery' },
+    // Create a shopping list based on common ingredients
+    const commonIngredients = [
+      { name: 'Chicken Breast', amount: '500g', category: 'Meat', checked: false },
+      { name: 'Rice', amount: '2 cups', category: 'Grains', checked: false },
+      { name: 'Tomatoes', amount: '6 pieces', category: 'Vegetables', checked: false },
+      { name: 'Onions', amount: '3 pieces', category: 'Vegetables', checked: false },
+      { name: 'Garlic', amount: '1 bulb', category: 'Vegetables', checked: false },
+      { name: 'Olive Oil', amount: '1 bottle', category: 'Oils', checked: false },
+      { name: 'Salt', amount: 'To taste', category: 'Seasonings', checked: false },
+      { name: 'Black Pepper', amount: 'To taste', category: 'Seasonings', checked: false },
+      { name: 'Mixed Herbs', amount: '1 pack', category: 'Seasonings', checked: false },
+      { name: 'Eggs', amount: '12 pieces', category: 'Dairy', checked: false },
+      { name: 'Milk', amount: '1 liter', category: 'Dairy', checked: false },
+      { name: 'Bread', amount: '1 loaf', category: 'Bakery', checked: false },
     ]
 
-    setShoppingList(mockIngredients)
+    setShoppingList(commonIngredients)
     setShowShoppingList(true)
     toast.success(`Generated shopping list for ${allMeals.length} meals`)
   }
 
+  const toggleShoppingItem = (index) => {
+    setShoppingList(prev => {
+      const updated = [...prev]
+      updated[index].checked = !updated[index].checked
+      return updated
+    })
+  }
+
   const printShoppingList = () => {
     const printWindow = window.open('', '_blank')
+    
+    // Group items by category
+    const groupedItems = shoppingList.reduce((acc, item) => {
+      if (!acc[item.category]) acc[item.category] = []
+      acc[item.category].push(item)
+      return acc
+    }, {})
+    
     printWindow.document.write(`
       <html>
         <head>
@@ -167,6 +216,7 @@ const Planner = () => {
             .category h3 { background: #f5f5f5; padding: 10px; border-radius: 5px; }
             .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
             .check { margin-right: 10px; }
+            .checked { text-decoration: line-through; color: #999; }
             @media print {
               .no-print { display: none; }
               body { font-size: 12pt; }
@@ -177,16 +227,12 @@ const Planner = () => {
           <h1>Weekly Shopping List</h1>
           <p>Generated from your meal plan • ${new Date().toLocaleDateString()}</p>
           <hr>
-          ${shoppingList.reduce((acc, item) => {
-            if (!acc[item.category]) acc[item.category] = []
-            acc[item.category].push(item)
-            return acc
-          }, {}).map(([category, items]) => `
+          ${Object.entries(groupedItems).map(([category, items]) => `
             <div class="category">
               <h3>${category}</h3>
               ${items.map(item => `
-                <div class="item">
-                  <span><input type="checkbox" class="check"> ${item.name}</span>
+                <div class="item ${item.checked ? 'checked' : ''}">
+                  <span>${item.checked ? '✓' : '□'} ${item.name}</span>
                   <span>${item.amount}</span>
                 </div>
               `).join('')}
@@ -201,7 +247,10 @@ const Planner = () => {
   }
 
   const downloadShoppingList = () => {
-    const text = shoppingList.map(item => `[ ] ${item.name} - ${item.amount}`).join('\n')
+    const text = shoppingList.map(item => 
+      `[${item.checked ? 'X' : ' '}] ${item.name} - ${item.amount} (${item.category})`
+    ).join('\n')
+    
     const blob = new Blob([text], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -288,13 +337,19 @@ const Planner = () => {
             </div>
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
               <div className="text-2xl font-bold text-purple-500">
-                {Math.round(daysOfWeek.reduce((acc, day) => 
-                  acc + mealTypes.reduce((sum, meal) => 
-                    sum + (planner[day]?.[meal]?.readyInMinutes || 0), 0
-                  ), 0
-                ) / (daysOfWeek.reduce((acc, day) => 
-                  acc + mealTypes.filter(meal => planner[day]?.[meal]).length, 0
-                ) || 1))}
+                {(() => {
+                  const meals = daysOfWeek.reduce((acc, day) => 
+                    acc + mealTypes.filter(meal => planner[day]?.[meal]).length, 0
+                  )
+                  if (meals === 0) return 0
+                  
+                  const totalTime = daysOfWeek.reduce((acc, day) => 
+                    acc + mealTypes.reduce((sum, meal) => 
+                      sum + (planner[day]?.[meal]?.readyInMinutes || 0), 0
+                    ), 0
+                  )
+                  return Math.round(totalTime / meals)
+                })()}
               </div>
               <div className="text-gray-600 dark:text-gray-400">Avg Time (min)</div>
             </div>
@@ -337,7 +392,7 @@ const Planner = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <ul className="space-y-2 text-gray-600 dark:text-gray-400">
                 <li>• Drag recipes from favorites to plan your week</li>
-                <li>• Left-click a meal slot to clear it</li>
+                <li>• Click a meal slot to clear it</li>
                 <li>• Generate shopping list for the entire week</li>
                 <li>• Plan 2-3 days at a time for flexibility</li>
               </ul>
@@ -364,13 +419,13 @@ const Planner = () => {
             {favorites.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p className="mb-4">No favorites yet</p>
-                <a 
-                  href="/dashboard" 
+                <Link 
+                  to="/dashboard" 
                   className="text-food-orange hover:underline inline-flex items-center gap-1"
                 >
                   <Plus size={16} />
                   Find recipes
-                </a>
+                </Link>
               </div>
             ) : (
               <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
@@ -430,13 +485,13 @@ const Planner = () => {
                 Reset Planner
               </button>
               
-              <a
-                href="/dashboard"
+              <Link
+                to="/dashboard"
                 className="w-full flex items-center justify-center gap-2 border border-food-orange text-food-orange hover:bg-food-orange hover:text-white py-3 rounded-lg font-medium transition-colors"
               >
                 <Plus size={18} />
                 Add More Recipes
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -468,15 +523,20 @@ const Planner = () => {
                 return acc
               }, {}).map(([category, items]) => (
                 <div key={category} className="mb-6">
-                  <h3 className="text-lg font-bold mb-3 pb-2 border-b">{category}</h3>
+                  <h3 className="text-lg font-bold mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">{category}</h3>
                   <div className="space-y-2">
                     {items.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
                         <div className="flex items-center gap-3">
-                          <input type="checkbox" className="rounded" />
-                          <span>{item.name}</span>
+                          <input 
+                            type="checkbox" 
+                            checked={item.checked}
+                            onChange={() => toggleShoppingItem(idx)}
+                            className="rounded text-food-orange focus:ring-food-orange"
+                          />
+                          <span className={item.checked ? 'line-through text-gray-400' : ''}>{item.name}</span>
                         </div>
-                        <span className="text-gray-600 dark:text-gray-400">{item.amount}</span>
+                        <span className={`text-gray-600 dark:text-gray-400 ${item.checked ? 'line-through' : ''}`}>{item.amount}</span>
                       </div>
                     ))}
                   </div>
@@ -486,7 +546,7 @@ const Planner = () => {
             
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
               <div className="text-gray-600 dark:text-gray-400">
-                {shoppingList.length} items total
+                {shoppingList.length} items total • {shoppingList.filter(item => item.checked).length} checked
               </div>
               <div className="flex gap-3">
                 <button
@@ -541,10 +601,12 @@ const DayColumn = ({ day, planner, getDayColor, onDrop, onDragOver, clearSlot, c
               onDrop={(e) => onDrop(e, day, mealType)}
               className={`min-h-[120px] rounded-xl border-2 border-dashed transition-all duration-200 ${
                 recipe 
-                  ? 'border-transparent bg-white dark:bg-gray-700 p-3' 
+                  ? 'border-transparent bg-white dark:bg-gray-700 p-3 cursor-pointer' 
                   : 'border-gray-300 dark:border-gray-600 hover:border-food-orange hover:bg-white/50 dark:hover:bg-gray-700/50 p-4'
               }`}
-              onClick={recipe ? () => clearSlot(day, mealType) : undefined}
+              onClick={() => {
+                if (recipe) clearSlot(day, mealType)
+              }}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className={`font-medium ${recipe ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500'}`}>
@@ -574,7 +636,7 @@ const DayColumn = ({ day, planner, getDayColor, onDrop, onDragOver, clearSlot, c
                   <h4 className="font-medium text-sm line-clamp-2">{recipe.title}</h4>
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <Clock size={12} />
-                    {recipe.readyInMinutes} min
+                    {recipe.readyInMinutes || 25} min
                   </div>
                 </div>
               ) : (

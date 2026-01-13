@@ -216,7 +216,7 @@ const generateCohereRecipe = async (ingredients, filter = null) => {
   try {
     console.log('🤖 Generating Cohere AI recipe (FREE)...');
 
-    const prompt = `Create a simple, practical recipe using ONLY these ingredients: ${ingredients.join(', ')}.
+    const prompt = `Create a simple, practical, real-life recipe using only these ingredients or some extras. Include the list of ingredients and step-by-step procedures: ${ingredients.join(', ')}.
 ${filter ? `Make it ${filter} (quick, healthy, vegetarian, etc.).` : ''}
 
 IMPORTANT: Return ONLY valid JSON, no other text.
@@ -340,7 +340,7 @@ const generateOpenRouterRecipe = async (ingredients, filter = null) => {
   try {
     console.log('🤖 Generating OpenRouter Mistral recipe (FREE)...');
 
-    const prompt = `Create a simple, practical recipe using ONLY these ingredients: ${ingredients.join(', ')}.
+    const prompt = `Create a simple, practical, real-life recipe using only these ingredients or some extras. Include the list of ingredients and step-by-step procedures: ${ingredients.join(', ')}.
 ${filter ? `Make it ${filter} (quick, healthy, vegetarian, etc.).` : ''}
 
 IMPORTANT: Return ONLY valid JSON, no other text.
@@ -1103,10 +1103,12 @@ router.get('/ingredients/suggest', async (req, res) => {
 });
 
 // GET /api/recipes/:id
+// Update the GET /api/recipes/:id endpoint to return actual ingredients
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const parsedId = parseInt(id);
+    const { ingredients } = req.query; // Get ingredients from query if available
 
     // Local recipe
     if (parsedId >= 1000 && parsedId < 2000) {
@@ -1122,13 +1124,26 @@ router.get('/:id', async (req, res) => {
               readyInMinutes: recipe.prepTime || 20,
               servings: recipe.servings || 2,
               summary: recipe.description,
-              extendedIngredients: recipe.ingredients.map((ing, idx) => ({
-                id: idx + 1,
-                name: ing,
-                original: ing,
-                amount: 1,
-                unit: 'as needed'
-              })),
+              extendedIngredients: recipe.ingredients.map((ing, idx) => {
+                // Parse ingredient string if it has amount
+                if (ing.includes('-')) {
+                  const parts = ing.split('-');
+                  return {
+                    id: idx + 1,
+                    name: parts[0].trim(),
+                    original: ing,
+                    amount: 1,
+                    unit: parts[1]?.trim() || 'as needed'
+                  };
+                }
+                return {
+                  id: idx + 1,
+                  name: ing,
+                  original: ing,
+                  amount: 1,
+                  unit: 'as needed'
+                };
+              }),
               analyzedInstructions: [{
                 steps: recipe.instructions.map((step, idx) => ({
                   number: idx + 1,
@@ -1143,28 +1158,123 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // AI-generated recipe details
+    // AI-generated recipe details (3000-3002 range)
     if (parsedId >= 3000 && parsedId <= 3002) {
-      // Return basic details for AI recipes
+      // Parse ingredients from query or use defaults
+      const ingredientList = ingredients ? 
+        ingredients.split(',').map(i => i.trim()) : 
+        ['chicken', 'rice', 'vegetables'];
+      
+      // Create AI recipe with actual ingredients based on source
+      let aiRecipe = {};
+      
+      if (parsedId === 3000) { // Gemini AI
+        aiRecipe = {
+          title: 'Gemini AI Fusion Dish',
+          prepTime: 25,
+          servings: 2,
+          ingredients: [
+            `${ingredientList[0] || 'chicken'} - 200g`,
+            `${ingredientList[1] || 'rice'} - 1 cup`,
+            `${ingredientList[2] || 'onion'} - 1 medium`,
+            'garlic - 2 cloves',
+            'olive oil - 2 tbsp',
+            'salt - to taste',
+            'pepper - to taste'
+          ],
+          instructions: [
+            `Chop ${ingredientList[2] || 'onion'} and garlic finely`,
+            `Heat oil in a pan and sauté ${ingredientList[2] || 'onion'} until translucent`,
+            `Add ${ingredientList[0] || 'chicken'} and cook until browned`,
+            `Add ${ingredientList[1] || 'rice'} and cook for 2 minutes`,
+            'Add water, cover and simmer for 15-20 minutes',
+            'Season with salt and pepper',
+            'Serve hot with garnish'
+          ]
+        };
+      } else if (parsedId === 3001) { // Cohere AI
+        aiRecipe = {
+          title: 'Cohere AI Quick Meal',
+          prepTime: 20,
+          servings: 2,
+          ingredients: [
+            `${ingredientList[0] || 'pasta'} - 200g`,
+            `${ingredientList[1] || 'tomato'} - 2 medium`,
+            `${ingredientList[2] || 'cheese'} - 100g`,
+            'basil leaves - handful',
+            'garlic - 2 cloves',
+            'olive oil - 3 tbsp',
+            'salt - to taste'
+          ],
+          instructions: [
+            'Boil water with salt and cook pasta according to package',
+            'Chop tomatoes and garlic',
+            'Heat olive oil in a pan',
+            'Sauté garlic until fragrant',
+            'Add tomatoes and cook until soft',
+            'Combine with cooked pasta',
+            'Top with cheese and basil before serving'
+          ]
+        };
+      } else if (parsedId === 3002) { // Mistral AI
+        aiRecipe = {
+          title: 'Mistral AI Smart Creation',
+          prepTime: 30,
+          servings: 2,
+          ingredients: [
+            `${ingredientList[0] || 'chicken'} - 250g`,
+            `${ingredientList[1] || 'bell pepper'} - 1 large`,
+            `${ingredientList[2] || 'onion'} - 1 medium`,
+            'soy sauce - 2 tbsp',
+            'ginger - 1 inch piece',
+            'garlic - 3 cloves',
+            'sesame oil - 1 tbsp'
+          ],
+          instructions: [
+            'Slice chicken and vegetables into thin strips',
+            'Mince garlic and ginger',
+            'Heat sesame oil in a wok or large pan',
+            'Stir-fry chicken until cooked through',
+            'Add vegetables and stir-fry for 3-4 minutes',
+            'Add soy sauce and cook for 1 more minute',
+            'Serve immediately'
+          ]
+        };
+      }
+      
       return res.json({
         success: true,
         recipe: {
           id: parsedId,
-          title: 'AI Generated Recipe',
+          title: aiRecipe.title,
           image: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=556&h=370&fit=crop&q=80',
-          readyInMinutes: 25,
-          servings: 2,
-          summary: 'AI-generated recipe based on your ingredients',
-          extendedIngredients: [
-            { id: 1, name: 'Your ingredients', original: 'Your provided ingredients', amount: 1, unit: 'portion' }
-          ],
+          readyInMinutes: aiRecipe.prepTime,
+          servings: aiRecipe.servings,
+          summary: `AI-generated recipe using ${ingredientList.slice(0, 3).join(', ')}`,
+          extendedIngredients: aiRecipe.ingredients.map((ing, idx) => {
+            // Parse ingredient string to extract amount and unit
+            const parts = ing.split(' - ');
+            const name = parts[0] || ing;
+            const amountUnit = parts[1] || 'as needed';
+            
+            // Try to extract numeric amount
+            const amountMatch = amountUnit.match(/(\d+(\.\d+)?)/);
+            const amount = amountMatch ? parseFloat(amountMatch[1]) : 1;
+            const unit = amountUnit.replace(/\d+(\.\d+)?\s*/g, '').trim() || 'portion';
+            
+            return {
+              id: idx + 1,
+              name: name,
+              original: ing,
+              amount: amount,
+              unit: unit
+            };
+          }),
           analyzedInstructions: [{
-            steps: [
-              { number: 1, step: 'Prepare your ingredients' },
-              { number: 2, step: 'Follow AI-generated instructions' },
-              { number: 3, step: 'Adjust based on taste' },
-              { number: 4, step: 'Serve and enjoy' }
-            ]
+            steps: aiRecipe.instructions.map((step, idx) => ({
+              number: idx + 1,
+              step: step
+            }))
           }],
           source: 'ai_generated',
           isFree: true
@@ -1172,28 +1282,60 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Fallback details
+    // Fallback details for other recipe IDs
+    const ingredientList = ingredients ? 
+      ingredients.split(',').map(i => i.trim()) : 
+      ['chicken', 'rice', 'vegetables'];
+    
+    // Create default ingredients with amounts
+    const defaultIngredients = [
+      `${ingredientList[0] || 'chicken'} - 200g`,
+      `${ingredientList[1] || 'rice'} - 1 cup`,
+      `${ingredientList[2] || 'onion'} - 1 medium`,
+      'garlic - 3 cloves',
+      'olive oil - 2 tbsp',
+      'salt - to taste',
+      'pepper - to taste',
+      'water - 2 cups'
+    ];
+    
     res.json({
       success: true,
       recipe: {
         id: parsedId,
-        title: 'Recipe Details',
+        title: 'Delicious Recipe Creation',
         image: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=556&h=370&fit=crop&q=80',
         readyInMinutes: 30,
-        servings: 4,
-        summary: 'Detailed recipe instructions',
-        extendedIngredients: [
-          { id: 1, name: 'ingredients', original: 'Your ingredients', amount: 1, unit: 'portion' }
-        ],
+        servings: 2,
+        summary: 'Custom recipe based on your ingredients',
+        extendedIngredients: defaultIngredients.map((ing, idx) => {
+          const parts = ing.split(' - ');
+          const name = parts[0] || ing;
+          const amountUnit = parts[1] || 'as needed';
+          
+          const amountMatch = amountUnit.match(/(\d+(\.\d+)?)/);
+          const amount = amountMatch ? parseFloat(amountMatch[1]) : 1;
+          const unit = amountUnit.replace(/\d+(\.\d+)?\s*/g, '').trim() || 'portion';
+          
+          return {
+            id: idx + 1,
+            name: name,
+            original: ing,
+            amount: amount,
+            unit: unit
+          };
+        }),
         analyzedInstructions: [{
           steps: [
-            { number: 1, step: 'Prepare your ingredients' },
-            { number: 2, step: 'Combine and cook as desired' },
-            { number: 3, step: 'Season to taste' },
-            { number: 4, step: 'Serve and enjoy' }
+            { number: 1, step: `Prepare ${ingredientList.slice(0, 3).join(', ')} by washing and chopping as needed` },
+            { number: 2, step: 'Heat oil in a pan over medium heat' },
+            { number: 3, step: 'Sauté onions and garlic until fragrant' },
+            { number: 4, step: `Add ${ingredientList[0] || 'main ingredient'} and cook until done` },
+            { number: 5, step: 'Season with salt and pepper to taste' },
+            { number: 6, step: 'Serve hot and enjoy your meal!' }
           ]
         }],
-        source: 'generic',
+        source: 'custom',
         isFree: true
       }
     });

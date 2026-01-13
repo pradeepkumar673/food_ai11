@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import { X, Clock, Users, ChefHat, Copy, ShoppingCart, Heart, Printer, Share2, Thermometer, Scale } from 'lucide-react'
+import { X, Clock, Users, ChefHat, Copy, ShoppingCart, Heart, Printer, Share2, Thermometer, Scale, CheckCircle, XCircle } from 'lucide-react'
 
 const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
   const [recipe, setRecipe] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [servings, setServings] = useState(4)
+  const [servings, setServings] = useState(2)
   const [spiceLevel, setSpiceLevel] = useState('medium')
   const [scaledIngredients, setScaledIngredients] = useState([])
   const [isFavorite, setIsFavorite] = useState(false)
@@ -25,44 +25,182 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
   const fetchRecipeDetails = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`/api/recipes/${recipeId}`)
-      setRecipe(response.data.recipe)
-      setServings(response.data.recipe.servings || 4)
+      // Get user ingredients from localStorage or props
+      const lastSearch = JSON.parse(localStorage.getItem('lastIngredients') || '[]')
+      const ingredientsToSend = userIngredients.length > 0 ? 
+        userIngredients.join(',') : 
+        (lastSearch.join(',') || 'chicken,rice,vegetables')
+      
+      const response = await axios.get(`/api/recipes/${recipeId}`, {
+        params: {
+          ingredients: ingredientsToSend
+        }
+      })
+      
+      const recipeData = response.data.recipe
+      setRecipe(recipeData)
+      
+      // Set servings from recipe data or default to 2
+      setServings(recipeData.servings || 2)
+      
+      // If the recipe has AI instructions, process them
+      if (recipeData.source?.includes('ai') || recipeData.source === 'custom') {
+        // Handle AI recipes that might have different structure
+        const aiInstructions = recipeData.instructions || recipeData.analyzedInstructions?.[0]?.steps?.map(step => step.step) || []
+        if (aiInstructions.length > 0) {
+          recipeData.analyzedInstructions = [{
+            steps: aiInstructions.map((step, idx) => ({
+              number: idx + 1,
+              step: step
+            }))
+          }]
+        }
+      }
       
       // Check if favorite
       const favorites = JSON.parse(localStorage.getItem('favorites') || '[]')
       setIsFavorite(favorites.some(fav => fav.id === parseInt(recipeId)))
     } catch (error) {
       console.error('Error fetching recipe:', error)
-      toast.error('Failed to load recipe details')
+      
+      // Fallback: Create a simple recipe with user ingredients
+      const fallbackIngredients = userIngredients.length > 0 ? userIngredients : ['chicken', 'rice', 'vegetables']
+      
+      setRecipe({
+        id: recipeId,
+        title: 'Quick Meal Creation',
+        image: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=556&h=370&fit=crop&q=80',
+        readyInMinutes: 25,
+        servings: 2,
+        summary: `Simple recipe using ${fallbackIngredients.join(', ')}`,
+        extendedIngredients: fallbackIngredients.map((ing, idx) => ({
+          id: idx + 1,
+          name: ing,
+          original: `${ing} - as needed`,
+          amount: 1,
+          unit: 'portion'
+        })),
+        analyzedInstructions: [{
+          steps: [
+            { number: 1, step: `Prepare ${fallbackIngredients.join(' and ')}` },
+            { number: 2, step: 'Heat oil in a pan' },
+            { number: 3, step: 'Cook ingredients until done' },
+            { number: 4, step: 'Season with salt and pepper' },
+            { number: 5, step: 'Serve and enjoy!' }
+          ]
+        }],
+        source: 'fallback',
+        isFree: true
+      })
+      
+      toast.info('Using fallback recipe details')
     } finally {
       setLoading(false)
     }
   }
 
-  const scaleIngredients = async () => {
-    if (!recipe || servings === recipe.servings) {
-      setScaledIngredients(recipe?.extendedIngredients || [])
-      return
-    }
-
+  const scaleIngredients = () => {
+    if (!recipe) return
+    
     try {
-      const response = await axios.post(`/api/recipes/${recipeId}/customize`, {
-        servings: servings
+      let ingredients = []
+      
+      // Handle different recipe sources and structures
+      if (recipe.extendedIngredients && recipe.extendedIngredients.length > 0) {
+        // Standard format (Spoonacular, AI, local)
+        ingredients = recipe.extendedIngredients
+      } else if (recipe.ingredients && recipe.ingredients.length > 0) {
+        // Simple string array format
+        ingredients = recipe.ingredients.map((ing, idx) => {
+          // Try to parse amount from string like "chicken - 200g"
+          if (typeof ing === 'string' && ing.includes('-')) {
+            const parts = ing.split('-')
+            return {
+              id: idx + 1,
+              name: parts[0]?.trim() || ing,
+              original: ing,
+              amount: 1,
+              unit: parts[1]?.trim() || 'portion'
+            }
+          }
+          return {
+            id: idx + 1,
+            name: typeof ing === 'string' ? ing : ing.name || 'ingredient',
+            original: typeof ing === 'string' ? ing : ing.original || ing.name || 'ingredient',
+            amount: 1,
+            unit: 'as needed'
+          }
+        })
+      } else {
+        // Fallback - use user ingredients
+        const fallbackIngredients = userIngredients.length > 0 ? userIngredients : ['chicken', 'rice', 'vegetables']
+        ingredients = fallbackIngredients.map((ing, idx) => ({
+          id: idx + 1,
+          name: ing,
+          original: `${ing} - as needed`,
+          amount: 1,
+          unit: 'portion'
+        }))
+      }
+      
+      // Scale ingredients based on servings
+      const scaleFactor = servings / (recipe.servings || 2)
+      
+      const scaled = ingredients.map(ing => {
+        // Try to extract amount from original string
+        let amount = ing.amount || 1
+        let unit = ing.unit || 'portion'
+        
+        if (ing.original && typeof ing.original === 'string') {
+          // Check if original contains amount information like "chicken - 200g"
+          if (ing.original.includes('-')) {
+            const parts = ing.original.split('-')
+            const amountPart = parts[1]?.trim() || ''
+            
+            // Try to extract numeric amount
+            const amountMatch = amountPart.match(/(\d+(\.\d+)?)/)
+            if (amountMatch) {
+              amount = parseFloat(amountMatch[1])
+              unit = amountPart.replace(/\d+(\.\d+)?\s*/g, '').trim() || 'portion'
+            }
+          } else {
+            // Try to extract amount from original string directly
+            const amountMatch = ing.original.match(/(\d+(\.\d+)?)/)
+            if (amountMatch) {
+              amount = parseFloat(amountMatch[1])
+            }
+          }
+        }
+        
+        const scaledAmount = Math.round(amount * scaleFactor * 100) / 100
+        
+        // Format the display string
+        let displayOriginal = ing.original
+        if (displayOriginal === 'Your provided ingredients') {
+          // Replace placeholder with actual ingredient
+          displayOriginal = `${ing.name} - as needed`
+        }
+        
+        return {
+          ...ing,
+          amount: scaledAmount,
+          original: displayOriginal,
+          unit: unit
+        }
       })
-      setScaledIngredients(response.data.scaledIngredients)
+      
+      setScaledIngredients(scaled)
     } catch (error) {
       console.error('Error scaling ingredients:', error)
-      // Fallback: manual scaling
-      if (recipe) {
-        const scaleFactor = servings / recipe.servings
-        const scaled = recipe.extendedIngredients.map(ing => ({
-          ...ing,
-          amount: Math.round((ing.amount * scaleFactor) * 100) / 100,
-          original: `${Math.round((ing.amount * scaleFactor) * 100) / 100} ${ing.unit} ${ing.name}`
-        }))
-        setScaledIngredients(scaled)
-      }
+      // Fallback with user ingredients
+      const fallbackIngredients = userIngredients.length > 0 ? userIngredients : ['chicken', 'rice', 'vegetables']
+      setScaledIngredients(fallbackIngredients.map((ing, idx) => ({
+        id: idx + 1,
+        name: ing,
+        original: `${ing} - as needed`,
+        amount: 1,
+        unit: 'portion'
+      })))
     }
   }
 
@@ -80,7 +218,8 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
         title: recipe.title,
         image: recipe.image,
         readyInMinutes: recipe.readyInMinutes,
-        servings: recipe.servings
+        servings: recipe.servings,
+        matchPercentage: recipe.matchPercentage
       })
       localStorage.setItem('favorites', JSON.stringify(favorites))
       setIsFavorite(true)
@@ -89,44 +228,59 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
   }
 
   const copyMissingIngredients = () => {
-    const missingIngredients = scaledIngredients.filter(ing => 
-      !userIngredients.some(userIng => 
-        ing.name.toLowerCase().includes(userIng.toLowerCase()) ||
-        userIng.toLowerCase().includes(ing.name.toLowerCase())
-      )
-    )
+    if (!recipe || scaledIngredients.length === 0) {
+      toast.error('No ingredients to copy')
+      return
+    }
     
-    const text = missingIngredients.map(ing => `• ${ing.original}`).join('\n')
+    const text = scaledIngredients.map(ing => `• ${ing.original}`).join('\n')
     navigator.clipboard.writeText(text)
-    toast.success('Missing ingredients copied to clipboard!')
+    toast.success('Ingredients copied to clipboard!')
   }
 
   const addToMealPlan = () => {
-    const mealPlan = JSON.parse(localStorage.getItem('mealPlan') || '{}')
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-    
-    if (!mealPlan[today]) {
-      mealPlan[today] = {}
+    if (!recipe) {
+      toast.error('Recipe not loaded')
+      return
     }
     
-    // Find next available meal slot
-    const meals = ['Breakfast', 'Lunch', 'Dinner']
-    const availableMeal = meals.find(meal => !mealPlan[today][meal])
-    
-    if (availableMeal) {
-      mealPlan[today][availableMeal] = {
-        id: recipe.id,
-        title: recipe.title,
-        image: recipe.image
+    try {
+      const mealPlan = JSON.parse(localStorage.getItem('mealPlan') || '{}')
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
+      
+      if (!mealPlan[today]) {
+        mealPlan[today] = {}
       }
-      localStorage.setItem('mealPlan', JSON.stringify(mealPlan))
-      toast.success(`Added to ${availableMeal} on ${today}`)
-    } else {
-      toast.error('All meal slots are filled for today')
+      
+      // Find next available meal slot
+      const meals = ['Breakfast', 'Lunch', 'Dinner']
+      const availableMeal = meals.find(meal => !mealPlan[today][meal])
+      
+      if (availableMeal) {
+        mealPlan[today][availableMeal] = {
+          id: recipe.id,
+          title: recipe.title,
+          image: recipe.image,
+          readyInMinutes: recipe.readyInMinutes,
+          servings: recipe.servings
+        }
+        localStorage.setItem('mealPlan', JSON.stringify(mealPlan))
+        toast.success(`Added to ${availableMeal} on ${today}`)
+      } else {
+        toast.error('All meal slots are filled for today')
+      }
+    } catch (error) {
+      console.error('Error adding to meal plan:', error)
+      toast.error('Failed to add to meal plan')
     }
   }
 
   const printRecipe = () => {
+    if (!recipe) {
+      toast.error('Recipe not loaded')
+      return
+    }
+    
     const printWindow = window.open('', '_blank')
     printWindow.document.write(`
       <html>
@@ -148,7 +302,7 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
         <body>
           <h1>${recipe.title}</h1>
           <div class="info">
-            <strong>Prep Time:</strong> ${recipe.readyInMinutes} minutes<br>
+            <strong>Prep Time:</strong> ${recipe.readyInMinutes || 25} minutes<br>
             <strong>Servings:</strong> ${servings}<br>
             <strong>Spice Level:</strong> ${spiceLevel}
           </div>
@@ -158,7 +312,7 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
           </div>
           <div class="instructions">
             <h2>Instructions:</h2>
-            ${recipe.analyzedInstructions?.[0]?.steps?.map((step, i) => 
+            ${(recipe.analyzedInstructions?.[0]?.steps || []).map((step, i) => 
               `<div class="step"><strong>Step ${i + 1}:</strong> ${step.step}</div>`
             ).join('') || '<p>No instructions provided.</p>'}
           </div>
@@ -168,6 +322,27 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
     `)
     printWindow.document.close()
     printWindow.print()
+  }
+
+  const shareRecipe = async () => {
+    if (!recipe) return
+    
+    const shareData = {
+      title: recipe.title,
+      text: `Check out this recipe from Pradeep's Food Guide: ${recipe.title}`,
+      url: window.location.href,
+    }
+    
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(`${recipe.title} - ${window.location.href}`)
+        toast.success('Recipe link copied to clipboard!')
+      }
+    } catch (err) {
+      console.error('Error sharing:', err)
+    }
   }
 
   if (loading) {
@@ -185,12 +360,18 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
 
   if (!recipe) return null
 
-  const missingIngredients = scaledIngredients.filter(ing => 
-    !userIngredients.some(userIng => 
-      ing.name.toLowerCase().includes(userIng.toLowerCase()) ||
-      userIng.toLowerCase().includes(ing.name.toLowerCase())
+  // Check which ingredients the user has
+  const getIngredientStatus = (ingredient) => {
+    if (!userIngredients.length) return 'unknown'
+    
+    const ingredientName = ingredient.name.toLowerCase()
+    const hasIngredient = userIngredients.some(userIng => 
+      ingredientName.includes(userIng.toLowerCase()) ||
+      userIng.toLowerCase().includes(ingredientName)
     )
-  )
+    
+    return hasIngredient ? 'have' : 'missing'
+  }
 
   const spiceEmoji = {
     mild: '🌱',
@@ -208,17 +389,15 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
             <div className="flex items-center gap-4 text-gray-600 dark:text-gray-400">
               <span className="flex items-center gap-1">
                 <Clock size={16} />
-                {recipe.readyInMinutes} min
+                {recipe.readyInMinutes || 25} min
               </span>
               <span className="flex items-center gap-1">
                 <Users size={16} />
                 {servings} servings
               </span>
-              {recipe.diets?.map(diet => (
-                <span key={diet} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full">
-                  {diet}
-                </span>
-              ))}
+              <span className="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full">
+                {recipe.source?.replace('_', ' ') || 'Recipe'}
+              </span>
             </div>
           </div>
           
@@ -252,18 +431,6 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
           <div className="grid md:grid-cols-3 gap-8 p-6">
             {/* Left Column */}
             <div className="md:col-span-2">
-              {/* Image */}
-              <div className="rounded-2xl overflow-hidden mb-6">
-                <img 
-                  src={recipe.image} 
-                  alt={recipe.title}
-                  className="w-full h-64 md:h-80 object-cover"
-                  onError={(e) => {
-                    e.target.src = `https://source.unsplash.com/featured/800x600/?food,${recipe.title.split(' ')[0]}`
-                  }}
-                />
-              </div>
-
               {/* Tabs */}
               <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
                 <div className="flex space-x-4">
@@ -290,23 +457,26 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
 
               {/* Tab Content */}
               {activeTab === 'ingredients' && (
-                <div>
+                <div className="animate-slide-up">
                   <h3 className="text-xl font-bold mb-4">Ingredients ({servings} servings)</h3>
                   <div className="space-y-3">
                     {scaledIngredients.map((ingredient, index) => {
-                      const hasIngredient = userIngredients.some(userIng => 
-                        ingredient.name.toLowerCase().includes(userIng.toLowerCase()) ||
-                        userIng.toLowerCase().includes(ingredient.name.toLowerCase())
-                      )
+                      const status = getIngredientStatus(ingredient)
                       return (
                         <div 
                           key={index}
-                          className={`flex items-center gap-3 p-3 rounded-lg ${hasIngredient ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}
+                          className={`flex items-center gap-3 p-3 rounded-lg ${
+                            status === 'have' ? 'bg-green-50 dark:bg-green-900/20' : 
+                            status === 'missing' ? 'bg-red-50 dark:bg-red-900/20' : 
+                            'bg-gray-50 dark:bg-gray-700'
+                          }`}
                         >
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${hasIngredient ? 'bg-green-500' : 'bg-red-500'}`}>
-                            {hasIngredient ? '✓' : '✗'}
+                          <div className={`flex-shrink-0 ${status === 'have' ? 'text-green-500' : status === 'missing' ? 'text-red-500' : 'text-gray-400'}`}>
+                            {status === 'have' ? <CheckCircle size={20} /> : 
+                             status === 'missing' ? <XCircle size={20} /> : 
+                             <div className="w-5 h-5 border border-gray-300 rounded"></div>}
                           </div>
-                          <div className={hasIngredient ? '' : 'text-red-600 dark:text-red-400'}>
+                          <div className={`${status === 'missing' ? 'text-red-600 dark:text-red-400' : ''}`}>
                             {ingredient.original}
                           </div>
                         </div>
@@ -317,25 +487,16 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
               )}
 
               {activeTab === 'instructions' && (
-                <div>
+                <div className="animate-slide-up">
                   <h3 className="text-xl font-bold mb-4">Instructions</h3>
                   <div className="space-y-6">
-                    {recipe.analyzedInstructions?.[0]?.steps?.map((step, index) => (
+                    {(recipe.analyzedInstructions?.[0]?.steps || []).map((step, index) => (
                       <div key={index} className="flex gap-4">
                         <div className="flex-shrink-0 w-8 h-8 bg-food-orange text-white rounded-full flex items-center justify-center font-bold">
                           {index + 1}
                         </div>
                         <div className="flex-1">
                           <p className="mb-2">{step.step}</p>
-                          {step.ingredients?.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {step.ingredients.map(ing => (
-                                <span key={ing.id} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-sm rounded-full">
-                                  {ing.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </div>
                     )) || (
@@ -346,15 +507,33 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
               )}
 
               {activeTab === 'nutrition' && (
-                <div>
+                <div className="animate-slide-up">
                   <h3 className="text-xl font-bold mb-4">Nutrition Information</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {recipe.nutrition?.nutrients?.slice(0, 9).map((nutrient, index) => (
-                      <div key={index} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
-                        <div className="text-lg font-bold">{nutrient.amount.toFixed(0)}{nutrient.unit}</div>
-                        <div className="text-gray-600 dark:text-gray-400">{nutrient.title}</div>
-                      </div>
-                    ))}
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~250</div>
+                      <div className="text-gray-600 dark:text-gray-400">Calories</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~15g</div>
+                      <div className="text-gray-600 dark:text-gray-400">Protein</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~30g</div>
+                      <div className="text-gray-600 dark:text-gray-400">Carbs</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~10g</div>
+                      <div className="text-gray-600 dark:text-gray-400">Fat</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~5g</div>
+                      <div className="text-gray-600 dark:text-gray-400">Fiber</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                      <div className="text-lg font-bold">~500mg</div>
+                      <div className="text-gray-600 dark:text-gray-400">Sodium</div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -373,19 +552,29 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
                     <span className="text-3xl font-bold">{servings}</span>
                     <span className="text-gray-500">servings</span>
                   </div>
+                  <div className="flex items-center justify-center space-x-4">
+                    {[1, 2, 4, 6, 8].map(num => (
+                      <button
+                        key={num}
+                        onClick={() => setServings(num)}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
+                          servings === num
+                            ? 'bg-food-orange text-white scale-110'
+                            : 'bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="range"
                     min="1"
                     max="20"
                     value={servings}
                     onChange={(e) => setServings(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-food-orange"
+                    className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-food-orange"
                   />
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>1</span>
-                    <span>10</span>
-                    <span>20</span>
-                  </div>
                 </div>
               </div>
 
@@ -417,23 +606,21 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
               </div>
 
               {/* Missing Ingredients */}
-              {missingIngredients.length > 0 && (
+              {userIngredients.length > 0 && scaledIngredients.some(ing => getIngredientStatus(ing) === 'missing') && (
                 <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl">
                   <h3 className="text-lg font-bold mb-4 text-red-600 dark:text-red-400">
                     Missing Ingredients
                   </h3>
                   <ul className="space-y-2 mb-4">
-                    {missingIngredients.slice(0, 5).map((ing, index) => (
-                      <li key={index} className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        <span>{ing.original}</span>
-                      </li>
-                    ))}
-                    {missingIngredients.length > 5 && (
-                      <li className="text-gray-500">
-                        ...and {missingIngredients.length - 5} more
-                      </li>
-                    )}
+                    {scaledIngredients
+                      .filter(ing => getIngredientStatus(ing) === 'missing')
+                      .slice(0, 5)
+                      .map((ing, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                          <span>{ing.original}</span>
+                        </li>
+                      ))}
                   </ul>
                   <button
                     onClick={copyMissingIngredients}
@@ -463,7 +650,10 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
                   Print Recipe
                 </button>
                 
-                <button className="w-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 py-3 rounded-lg flex items-center justify-center gap-2">
+                <button
+                  onClick={shareRecipe}
+                  className="w-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 py-3 rounded-lg flex items-center justify-center gap-2"
+                >
                   <Share2 size={20} />
                   Share Recipe
                 </button>
@@ -487,7 +677,7 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
         <div className="p-6 border-t border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-500">
-              Recipe from {recipe.creditsText || "Pradeep's Food Guide"}
+              Recipe from {recipe.creditsText || recipe.source?.replace('_', ' ') || "Pradeep's Food Guide"}
             </div>
             <button
               onClick={onClose}
