@@ -1,0 +1,95 @@
+databases:
+  - name: pradeeps-food-guide-db
+    databaseName: foodguide
+    plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+
+services:
+  # Backend Service (Node.js API)
+  - type: web
+    name: pradeeps-food-guide-backend
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: |
+      echo "🚀 Building Pradeep's Food Guide Backend..."
+      cd pradeeps-food-guide/backend
+      npm install
+      echo "✅ Build completed!"
+    startCommand: |
+      cd pradeeps-food-guide/backend
+      node server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: pradeeps-food-guide-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: SPOONACULAR_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: COHERE_API_KEY
+        sync: false
+      - key: OPEN_ROUTER_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  # Frontend Service (Static React App)
+  - type: web
+    name: pradeeps-food-guide-frontend
+    env: static
+    plan: free
+    region: singapore
+    buildCommand: |
+      echo "🚀 Building Pradeep's Food Guide Frontend..."
+      cd pradeeps-food-guide/frontend
+      npm install
+      npm run build
+      echo "✅ Build completed!"
+    staticPublishPath: pradeeps-food-guide/frontend/dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        sync: false
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=3600
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+# Scheduled jobs (optional - for database cleanup or cache refresh)
+jobs:
+  - name: cleanup-expired-sessions
+    plan: free
+    region: singapore
+    env: node
+    schedule: "0 3 * * *"  # Daily at 3 AM UTC
+    buildCommand: cd pradeeps-food-guide/backend && npm install
+    startCommand: cd pradeeps-food-guide/backend && node scripts/cleanup.js
