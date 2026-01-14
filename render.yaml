@@ -83,13 +83,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-
-# Scheduled jobs (optional - for database cleanup or cache refresh)
-jobs:
-  - name: cleanup-expired-sessions
-    plan: free
-    region: singapore
-    env: node
-    schedule: "0 3 * * *"  # Daily at 3 AM UTC
-    buildCommand: cd pradeeps-food-guide/backend && npm install
-    startCommand: cd pradeeps-food-guide/backend && node scripts/cleanup.js
