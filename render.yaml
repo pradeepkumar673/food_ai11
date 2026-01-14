@@ -7,12 +7,12 @@ databases:
         description: everywhere
 
 services:
-  # Backend Service (Node.js API)
+  # Backend Service (Node.js API) - ✅ Can have region
   - type: web
     name: pradeeps-food-guide-backend
     env: node
     plan: free
-    region: singapore
+    region: singapore  # ✅ Allowed for web services
     buildCommand: |
       echo "🚀 Building Pradeep's Food Guide Backend..."
       cd pradeeps-food-guide/backend
@@ -47,12 +47,12 @@ services:
       - key: FRONTEND_URL
         sync: false
 
-  # Frontend Service (Static React App)
-  - type: web
+  # Frontend Service (Static React App) - ✅ FIXED
+  - type: static  # ⬅️ CHANGED from "web" to "static"
     name: pradeeps-food-guide-frontend
-    env: static
     plan: free
-    region: singapore
+    # ❌ REMOVED "region:" entirely (static sites can't have regions)
+    # ❌ REMOVED "env: static" (not needed for type: static)
     buildCommand: |
       echo "🚀 Building Pradeep's Food Guide Frontend..."
       cd pradeeps-food-guide/frontend
