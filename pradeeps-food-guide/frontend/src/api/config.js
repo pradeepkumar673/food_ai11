@@ -1,5 +1,5 @@
 // Get backend URL from environment variable or use development proxy
-export const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+export const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 // Create axios instance with base URL
 import axios from 'axios';

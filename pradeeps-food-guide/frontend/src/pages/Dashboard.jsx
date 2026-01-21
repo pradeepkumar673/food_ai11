@@ -23,7 +23,7 @@ const Dashboard = () => {
 useEffect(() => {
   const checkAPIStatus = async () => {
     try {
-      const response = await api.get('/api/healthcheck');
+      const response = await api.get('/api/health');
       console.log('API Status:', response.data);
       
       if (!response.data.apis.spoonacular) {
