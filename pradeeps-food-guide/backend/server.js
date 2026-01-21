@@ -26,7 +26,7 @@ const limiter = rateLimit({
 });
 
 // Configure CORS for production and development
-const allowedOrigins = [];
+const allowedOrigins = ['https://pradeeps-food-guide-frontend.onrender.com'];
 if (process.env.NODE_ENV === 'development') {
   allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
 }
