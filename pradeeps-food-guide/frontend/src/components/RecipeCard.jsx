@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Clock, Users, Heart, ChevronRight, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Link } from 'react-router-dom'
+
 
 const RecipeCard = ({ recipe, onClick, userIngredients = [] }) => {
   const [isFavorite, setIsFavorite] = useState(() => {

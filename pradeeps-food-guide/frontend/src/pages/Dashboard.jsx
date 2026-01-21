@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import RecipeCard from '../components/RecipeCard'
 import RecipeModal from '../components/RecipeModal'
 import { Search, X, Filter, ChefHat, Clock, TrendingUp, Sparkles, Loader } from 'lucide-react'
+import { api } from '../api/config';
 
 const Dashboard = () => {
   const [ingredients, setIngredients] = useState('')
@@ -22,7 +23,7 @@ const Dashboard = () => {
 useEffect(() => {
   const checkAPIStatus = async () => {
     try {
-      const response = await axios.get('/api/health');
+      const response = await api.get('/api/healthcheck');
       console.log('API Status:', response.data);
       
       if (!response.data.apis.spoonacular) {
@@ -67,7 +68,7 @@ useEffect(() => {
     }
 
     try {
-      const response = await axios.get('/api/recipes/ingredients/suggest', {
+      const response = await api.get('/api/recipes/ingredients/suggest', {
         params: { query }
       })
       
@@ -149,52 +150,60 @@ useEffect(() => {
     }
   }
 
-  const handleSearch = async () => {
-    if (ingredientTags.length === 0) {
-      toast.error('Please add at least one ingredient')
-      return
-    }
-
-    setLoading(true)
-    setSearching(true)
-    setUserIngredients([...ingredientTags])
-    
-    try {
-      const response = await axios.get('/api/recipes/search', {
-        params: {
-          ingredients: ingredientTags.join(','),
-          filter: selectedFilter,
-          number: 15
-        }
-      })
-      
-      if (response.data.recipes && response.data.recipes.length > 0) {
-        setRecipes(response.data.recipes)
-        
-        if (response.data.usingFallback) {
-          toast(
-            <div className="flex items-center gap-2">
-              <Sparkles className="text-purple-500" />
-              <span>Using AI-powered suggestions!</span>
-            </div>,
-            { duration: 4000 }
-          )
-        } else {
-          toast.success(`Found ${response.data.recipes.length} recipes!`)
-        }
-      } else {
-        toast('No recipes found. Try different ingredients!', { icon: '👨‍🍳' })
-        setRecipes([])
-      }
-    } catch (error) {
-      console.error('Search error:', error)
-      toast.error('Search failed. Please try again.')
-      setRecipes([])
-    } finally {
-      setLoading(false)
-      setSearching(false)
-    }
+ const handleSearch = async () => {
+  if (ingredientTags.length === 0) {
+    toast.error('Please add at least one ingredient')
+    return
   }
+
+  setLoading(true)
+  setSearching(true)
+  setUserIngredients([...ingredientTags])
+  
+  try {
+    const response = await api.get('/api/recipes/search', {  // Use api instead of axios
+      params: {
+        ingredients: ingredientTags.join(','),
+        filter: selectedFilter,
+        number: 15
+      }
+    })
+    
+    if (response.data.recipes && response.data.recipes.length > 0) {
+      setRecipes(response.data.recipes)
+      
+      if (response.data.usingFallback) {
+        toast(
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-purple-500" />
+            <span>Using AI-powered suggestions!</span>
+          </div>,
+          { duration: 4000 }
+        )
+      } else {
+        toast.success(`Found ${response.data.recipes.length} recipes!`)
+      }
+    } else {
+      toast('No recipes found. Try different ingredients!', { icon: '👨‍🍳' })
+      setRecipes([])
+    }
+  } catch (error) {
+    console.error('Search error:', error)
+    
+    // Better error messages
+    if (error.code === 'ERR_NETWORK' || error.response?.status === 404) {
+      toast.error('Cannot connect to backend server. Please check if the backend is running.');
+    } else if (error.response?.status === 429) {
+      toast.error('Rate limit reached. Please try again in a few minutes.');
+    } else {
+      toast.error('Search failed. Please try again.')
+    }
+    setRecipes([])
+  } finally {
+    setLoading(false)
+    setSearching(false)
+  }
+}
 
   const handleRecipeClick = (recipe) => {
     setSelectedRecipe(recipe)

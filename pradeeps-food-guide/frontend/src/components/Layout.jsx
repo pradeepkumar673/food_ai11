@@ -95,13 +95,13 @@ const Layout = ({ children }) => {
               using ingredients you already have at home. No sign-up required!
             </p>
             <div className="flex gap-6 mt-4">
-              <a href="#" className="text-gray-500 hover:text-food-orange transition-colors">
+              <a href="https://github.com/pradeepkumar673" className="text-gray-500 hover:text-food-orange transition-colors">
                 <i className="fab fa-github text-xl"></i>
               </a>
-              <a href="#" className="text-gray-500 hover:text-food-orange transition-colors">
-                <i className="fab fa-twitter text-xl"></i>
+              <a href="https://www.linkedin.com/in/pradeepkumar673/" className="text-gray-500 hover:text-food-orange transition-colors">
+                <i className="fab fa-linkedin text-xl"></i>
               </a>
-              <a href="#" className="text-gray-500 hover:text-food-orange transition-colors">
+              <a href="https://www.instagram.com/pradeepkumar673atyt/" className="text-gray-500 hover:text-food-orange transition-colors">
                 <i className="fab fa-instagram text-xl"></i>
               </a>
             </div>

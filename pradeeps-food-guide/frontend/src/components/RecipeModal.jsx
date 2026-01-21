@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { X, Clock, Users, ChefHat, Copy, ShoppingCart, Heart, Printer, Share2, Thermometer, Scale, CheckCircle, XCircle } from 'lucide-react'
+import { api } from '../api/config';
 
 const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
   const [recipe, setRecipe] = useState(null)
@@ -31,7 +32,7 @@ const RecipeModal = ({ recipeId, onClose, userIngredients = [] }) => {
         userIngredients.join(',') : 
         (lastSearch.join(',') || 'chicken,rice,vegetables')
       
-      const response = await axios.get(`/api/recipes/${recipeId}`, {
+      const response = await api.get(`/api/recipes/${recipeId}`, {
         params: {
           ingredients: ingredientsToSend
         }
